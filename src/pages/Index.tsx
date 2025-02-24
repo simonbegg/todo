@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +23,9 @@ const Index = () => {
   const [dueDate, setDueDate] = useState<Date>();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [editingDate, setEditingDate] = useState<Date>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -149,6 +151,49 @@ const Index = () => {
     navigate("/auth");
   };
 
+  const handleEdit = async (todo: Todo) => {
+    setEditingTodo(todo);
+    setEditingText(todo.task);
+    setEditingDate(todo.due_date ? new Date(todo.due_date) : undefined);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTodo) return;
+    
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .update({ 
+          task: editingText,
+          due_date: editingDate?.toISOString() || null 
+        })
+        .eq('id', editingTodo.id);
+
+      if (error) throw error;
+
+      setEditingTodo(null);
+      setEditingText("");
+      setEditingDate(undefined);
+      
+      toast({
+        title: "Success!",
+        description: "Task updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTodo(null);
+    setEditingText("");
+    setEditingDate(undefined);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -208,34 +253,68 @@ const Index = () => {
           {todos.map((todo) => (
             <div
               key={todo.id}
-              className={cn(
-                "flex items-center justify-between p-4 bg-white rounded-lg shadow-sm transition-all",
-                todo.is_completed && "bg-gray-50"
-              )}
+              className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow"
             >
-              <div className="flex-1">
-                <p
-                  onClick={() => toggleTodo(todo.id, todo.is_completed)}
-                  className={cn(
-                    "cursor-pointer text-gray-800",
-                    todo.is_completed && "line-through text-gray-400"
+              {editingTodo?.id === todo.id ? (
+                <>
+                  <Input
+                    value={editingText}
+                    onChange={(e) => setEditingText(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !editingDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={editingDate}
+                        onSelect={setEditingDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button onClick={handleSaveEdit} size="icon">
+                    ✓
+                  </Button>
+                  <Button onClick={handleCancelEdit} size="icon" variant="destructive">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span 
+                    onClick={() => toggleTodo(todo.id, todo.is_completed)}
+                    className={cn(
+                      "flex-1 cursor-pointer hover:text-gray-600 transition-colors",
+                      todo.is_completed && "line-through text-gray-400"
+                    )}
+                  >
+                    {todo.task}
+                  </span>
+                  {todo.due_date && (
+                    <span className="text-sm text-gray-500">
+                      {format(new Date(todo.due_date), "PPP")}
+                    </span>
                   )}
-                >
-                  {todo.task}
-                </p>
-                {todo.due_date && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Due: {format(new Date(todo.due_date), "PPP")}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => deleteTodo(todo.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+                  <Button onClick={() => handleEdit(todo)} size="icon" variant="outline">
+                    ✎
+                  </Button>
+                  <Button onClick={() => deleteTodo(todo.id)} size="icon" variant="destructive">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </div>
