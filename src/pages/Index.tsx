@@ -5,17 +5,91 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Loader2, X } from "lucide-react";
+import { Calendar as CalendarIcon, GripVertical, Loader2, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Todo {
   id: string;
   task: string;
   is_completed: boolean;
   due_date: string | null;
+  order: number;
 }
+
+const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: { 
+  todo: Todo, 
+  onToggle: (id: string, is_completed: boolean) => void,
+  onEdit: (todo: Todo) => void,
+  onDelete: (id: string) => void
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: todo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0 : 1, // Hide the original item when dragging
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow"
+    >
+      <div className="cursor-grab" {...attributes} {...listeners}>
+        <GripVertical className="h-5 w-5 text-gray-400" />
+      </div>
+      <span 
+        onClick={() => onToggle(todo.id, todo.is_completed)}
+        className={cn(
+          "flex-1 cursor-pointer hover:text-gray-600 transition-colors",
+          todo.is_completed && "line-through text-gray-400"
+        )}
+      >
+        {todo.task}
+      </span>
+      {todo.due_date && (
+        <span className="text-sm text-gray-500">
+          {format(new Date(todo.due_date), "PPP")}
+        </span>
+      )}
+      <Button onClick={() => onEdit(todo)} size="icon" variant="outline">
+        ✎
+      </Button>
+      <Button onClick={() => onDelete(todo.id)} size="icon" variant="destructive">
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
 
 const Index = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -26,6 +100,7 @@ const Index = () => {
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editingDate, setEditingDate] = useState<Date>();
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -61,7 +136,7 @@ const Index = () => {
       const { data, error } = await supabase
         .from('todos')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('order', { ascending: true });
 
       if (error) throw error;
       setTodos(data || []);
@@ -92,12 +167,26 @@ const Index = () => {
         return;
       }
 
+      // Get the minimum order value (lowest number = highest position)
+      const { data: highestTodo, error: fetchError } = await supabase
+        .from('todos')
+        .select('order')
+        .order('order', { ascending: true })
+        .limit(1);
+
+      if (fetchError) throw fetchError;
+
+      // Set new todo's order to be one less than the current minimum (to place it at the top)
+      // If no todos exist yet, start with order 0
+      const newOrder = highestTodo && highestTodo.length > 0 ? highestTodo[0].order - 1 : 0;
+
       const { error } = await supabase
         .from('todos')
         .insert({
           task: newTask,
           due_date: dueDate ? dueDate.toISOString() : null,
-          user_id: user.id
+          user_id: user.id,
+          order: newOrder
         });
 
       if (error) throw error;
@@ -194,6 +283,80 @@ const Index = () => {
     setEditingDate(undefined);
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    // Update the local state first for immediate UI feedback
+    setTodos((prevTodos) => {
+      const oldIndex = prevTodos.findIndex((todo) => todo.id === active.id);
+      const newIndex = prevTodos.findIndex((todo) => todo.id === over.id);
+      
+      return arrayMove(prevTodos, oldIndex, newIndex);
+    });
+
+    // Then update the database
+    try {
+      // Get the reordered todos after the state update
+      const updatedTodos = [...todos];
+      const oldIndex = updatedTodos.findIndex((todo) => todo.id === active.id);
+      const newIndex = updatedTodos.findIndex((todo) => todo.id === over.id);
+      
+      const reorderedTodos = arrayMove(updatedTodos, oldIndex, newIndex);
+      
+      // Assign new order values
+      const updates = reorderedTodos.map((todo, index) => ({
+        id: todo.id,
+        order: index
+      }));
+      
+      // Update all todos with their new order values
+      const promises = updates.map(update => 
+        supabase
+          .from('todos')
+          .update({ order: update.order })
+          .eq('id', update.id)
+      );
+      
+      const results = await Promise.all(promises);
+      const errors = results.filter(result => result.error);
+      
+      if (errors.length > 0) {
+        throw new Error(errors[0].error.message);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update task order: " + error.message,
+      });
+      // Refetch to ensure UI is in sync with database
+      fetchTodos();
+    }
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Get the active todo item for the drag overlay
+  const activeTodo = todos.find(todo => todo.id === activeDragId);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -250,13 +413,18 @@ const Index = () => {
         </form>
 
         <div className="space-y-4">
-          {todos.map((todo) => (
-            <div
-              key={todo.id}
-              className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={todos.map(todo => todo.id)}
+              strategy={verticalListSortingStrategy}
             >
-              {editingTodo?.id === todo.id ? (
-                <>
+              {editingTodo ? (
+                <div key={editingTodo.id} className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow">
                   <Input
                     value={editingText}
                     onChange={(e) => setEditingText(e.target.value)}
@@ -290,33 +458,44 @@ const Index = () => {
                   <Button onClick={handleCancelEdit} size="icon" variant="destructive">
                     <X className="h-4 w-4" />
                   </Button>
-                </>
+                </div>
               ) : (
-                <>
-                  <span 
-                    onClick={() => toggleTodo(todo.id, todo.is_completed)}
-                    className={cn(
-                      "flex-1 cursor-pointer hover:text-gray-600 transition-colors",
-                      todo.is_completed && "line-through text-gray-400"
-                    )}
-                  >
-                    {todo.task}
+                todos.map((todo) => (
+                  <SortableTodoItem
+                    key={todo.id}
+                    todo={todo}
+                    onToggle={toggleTodo}
+                    onEdit={handleEdit}
+                    onDelete={deleteTodo}
+                  />
+                ))
+              )}
+            </SortableContext>
+            
+            {/* Drag overlay to show a consistent representation during dragging */}
+            <DragOverlay adjustScale={true} dropAnimation={null}>
+              {activeTodo ? (
+                <div className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow-lg opacity-95 scale-[1.02]">
+                  <div className="cursor-grab">
+                    <GripVertical className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <span className={cn(
+                    "flex-1",
+                    activeTodo.is_completed && "line-through text-gray-400"
+                  )}>
+                    {activeTodo.task}
                   </span>
-                  {todo.due_date && (
+                  {activeTodo.due_date && (
                     <span className="text-sm text-gray-500">
-                      {format(new Date(todo.due_date), "PPP")}
+                      {format(new Date(activeTodo.due_date), "PPP")}
                     </span>
                   )}
-                  <Button onClick={() => handleEdit(todo)} size="icon" variant="outline">
-                    ✎
-                  </Button>
-                  <Button onClick={() => deleteTodo(todo.id)} size="icon" variant="destructive">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-          ))}
+                  <div className="w-10 h-10"></div>
+                  <div className="w-10 h-10"></div>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </div>
     </div>
