@@ -423,44 +423,44 @@ const Index = () => {
               items={todos.map(todo => todo.id)}
               strategy={verticalListSortingStrategy}
             >
-              {editingTodo ? (
-                <div key={editingTodo.id} className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow">
-                  <Input
-                    value={editingText}
-                    onChange={(e) => setEditingText(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "justify-start text-left font-normal",
-                          !editingDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={editingDate}
-                        onSelect={setEditingDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Button onClick={handleSaveEdit} size="icon">
-                    ✓
-                  </Button>
-                  <Button onClick={handleCancelEdit} size="icon" variant="destructive">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                todos.map((todo) => (
+              {todos.map((todo) => (
+                editingTodo?.id === todo.id ? (
+                  <div key={todo.id} className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow">
+                    <Input
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !editingDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={editingDate}
+                          onSelect={setEditingDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Button onClick={handleSaveEdit} size="icon">
+                      ✓
+                    </Button>
+                    <Button onClick={handleCancelEdit} size="icon" variant="destructive">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
                   <SortableTodoItem
                     key={todo.id}
                     todo={todo}
@@ -468,8 +468,8 @@ const Index = () => {
                     onEdit={handleEdit}
                     onDelete={deleteTodo}
                   />
-                ))
-              )}
+                )
+              ))}
             </SortableContext>
             
             {/* Drag overlay to show a consistent representation during dragging */}
