@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, GripVertical, Loader2, X } from "lucide-react";
+import { Calendar as CalendarIcon, GripVertical, Loader2, X, Clock } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
 import {
   DndContext,
   closestCenter,
@@ -76,11 +77,14 @@ const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: {
       >
         {todo.task}
       </span>
-      {todo.due_date && (
-        <span className="text-sm text-gray-500">
-          {format(new Date(todo.due_date), "PPP")}
-        </span>
-      )}
+      <div className="flex items-center gap-2">
+        <PomodoroTimer todoId={todo.id} />
+        {todo.due_date && (
+          <span className="text-sm text-gray-500">
+            {format(new Date(todo.due_date), "PPP")}
+          </span>
+        )}
+      </div>
       <Button onClick={() => onEdit(todo)} size="icon" variant="outline">
         ✎
       </Button>
@@ -426,33 +430,39 @@ const Index = () => {
               {todos.map((todo) => (
                 editingTodo?.id === todo.id ? (
                   <div key={todo.id} className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow">
+                    <div className="w-5 opacity-0">
+                      <GripVertical className="h-5 w-5 text-gray-400" />
+                    </div>
                     <Input
                       value={editingText}
                       onChange={(e) => setEditingText(e.target.value)}
                       className="flex-1"
                     />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "justify-start text-left font-normal",
-                            !editingDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={editingDate}
-                          onSelect={setEditingDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-6 opacity-0"></div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "justify-start text-left font-normal",
+                              !editingDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={editingDate}
+                            onSelect={setEditingDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <Button onClick={handleSaveEdit} size="icon">
                       ✓
                     </Button>
@@ -485,13 +495,25 @@ const Index = () => {
                   )}>
                     {activeTodo.task}
                   </span>
-                  {activeTodo.due_date && (
-                    <span className="text-sm text-gray-500">
-                      {format(new Date(activeTodo.due_date), "PPP")}
-                    </span>
-                  )}
-                  <div className="w-10 h-10"></div>
-                  <div className="w-10 h-10"></div>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-gray-100 text-gray-600 text-sm font-medium px-2 py-1 rounded">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>Pomodoro</span>
+                      </span>
+                    </div>
+                    {activeTodo.due_date && (
+                      <span className="text-sm text-gray-500">
+                        {format(new Date(activeTodo.due_date), "PPP")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center">
+                    <span className="text-gray-500">✎</span>
+                  </div>
+                  <div className="w-8 h-8 rounded-md bg-red-50 flex items-center justify-center">
+                    <X className="h-4 w-4 text-red-500" />
+                  </div>
                 </div>
               ) : null}
             </DragOverlay>
