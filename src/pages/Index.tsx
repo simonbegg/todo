@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { Footer } from "@/components/Footer";
 import {
   DndContext,
   closestCenter,
@@ -38,8 +39,8 @@ interface Todo {
   order: number;
 }
 
-const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: { 
-  todo: Todo, 
+const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: {
+  todo: Todo,
   onToggle: (id: string, is_completed: boolean) => void,
   onEdit: (todo: Todo) => void,
   onDelete: (id: string) => void
@@ -68,7 +69,7 @@ const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: {
       <div className="cursor-grab" {...attributes} {...listeners}>
         <GripVertical className="h-5 w-5 text-gray-400" />
       </div>
-      <span 
+      <span
         onClick={() => onToggle(todo.id, todo.is_completed)}
         className={cn(
           "flex-1 cursor-pointer hover:text-gray-600 transition-colors",
@@ -124,7 +125,7 @@ const Index = () => {
   useEffect(() => {
     const channel = supabase
       .channel('todos_changes')
-      .on('postgres_changes', 
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'todos' },
         fetchTodos
       )
@@ -161,7 +162,7 @@ const Index = () => {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         toast({
           variant: "destructive",
@@ -252,13 +253,13 @@ const Index = () => {
 
   const handleSaveEdit = async () => {
     if (!editingTodo) return;
-    
+
     try {
       const { error } = await supabase
         .from('todos')
-        .update({ 
+        .update({
           task: editingText,
-          due_date: editingDate?.toISOString() || null 
+          due_date: editingDate?.toISOString() || null
         })
         .eq('id', editingTodo.id);
 
@@ -267,7 +268,7 @@ const Index = () => {
       setEditingTodo(null);
       setEditingText("");
       setEditingDate(undefined);
-      
+
       toast({
         title: "Success!",
         description: "Task updated successfully.",
@@ -294,7 +295,7 @@ const Index = () => {
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
-    
+
     if (!over || active.id === over.id) {
       return;
     }
@@ -303,7 +304,7 @@ const Index = () => {
     setTodos((prevTodos) => {
       const oldIndex = prevTodos.findIndex((todo) => todo.id === active.id);
       const newIndex = prevTodos.findIndex((todo) => todo.id === over.id);
-      
+
       return arrayMove(prevTodos, oldIndex, newIndex);
     });
 
@@ -313,26 +314,26 @@ const Index = () => {
       const updatedTodos = [...todos];
       const oldIndex = updatedTodos.findIndex((todo) => todo.id === active.id);
       const newIndex = updatedTodos.findIndex((todo) => todo.id === over.id);
-      
+
       const reorderedTodos = arrayMove(updatedTodos, oldIndex, newIndex);
-      
+
       // Assign new order values
       const updates = reorderedTodos.map((todo, index) => ({
         id: todo.id,
         order: index
       }));
-      
+
       // Update all todos with their new order values
-      const promises = updates.map(update => 
+      const promises = updates.map(update =>
         supabase
           .from('todos')
           .update({ order: update.order })
           .eq('id', update.id)
       );
-      
+
       const results = await Promise.all(promises);
       const errors = results.filter(result => result.error);
-      
+
       if (errors.length > 0) {
         throw new Error(errors[0].error.message);
       }
@@ -370,8 +371,8 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className="container py-8 flex-1">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Todo List</h1>
           <Button variant="outline" onClick={handleSignOut}>
@@ -389,7 +390,7 @@ const Index = () => {
               className="w-full"
             />
           </div>
-          
+
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -440,28 +441,40 @@ const Index = () => {
                     />
                     <div className="flex items-center gap-2">
                       <div className="w-24 h-6 opacity-0"></div>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "justify-start text-left font-normal",
-                              !editingDate && "text-muted-foreground"
-                            )}
+                      <div className="flex items-center gap-1">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "justify-start text-left font-normal",
+                                !editingDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={editingDate}
+                              onSelect={setEditingDate}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        {editingDate && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => setEditingDate(undefined)}
+                            className="h-8 w-8"
                           >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editingDate ? format(editingDate, "PPP") : <span>Pick a date</span>}
+                            <X className="h-4 w-4" />
                           </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={editingDate}
-                            onSelect={setEditingDate}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                        )}
+                      </div>
                     </div>
                     <Button onClick={handleSaveEdit} size="icon">
                       ✓
@@ -481,7 +494,7 @@ const Index = () => {
                 )
               ))}
             </SortableContext>
-            
+
             {/* Drag overlay to show a consistent representation during dragging */}
             <DragOverlay adjustScale={true} dropAnimation={null}>
               {activeTodo ? (
@@ -520,6 +533,7 @@ const Index = () => {
           </DndContext>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };
