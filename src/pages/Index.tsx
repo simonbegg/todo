@@ -64,9 +64,9 @@ const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: {
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow"
+      className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-4 bg-white p-4 rounded-lg shadow"
     >
-      <div className="cursor-grab" {...attributes} {...listeners}>
+      <div className="cursor-grab md:mr-0" {...attributes} {...listeners}>
         <GripVertical className="h-5 w-5 text-gray-400" />
       </div>
       <span
@@ -86,12 +86,14 @@ const SortableTodoItem = ({ todo, onToggle, onEdit, onDelete }: {
           </span>
         )}
       </div>
-      <Button onClick={() => onEdit(todo)} size="icon" variant="outline">
-        ✎
-      </Button>
-      <Button onClick={() => onDelete(todo.id)} size="icon" variant="destructive">
-        <X className="h-4 w-4" />
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button onClick={() => onEdit(todo)} size="icon" variant="outline">
+          ✎
+        </Button>
+        <Button onClick={() => onDelete(todo.id)} size="icon" variant="destructive">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 };
@@ -430,7 +432,7 @@ const Index = () => {
             >
               {todos.map((todo) => (
                 editingTodo?.id === todo.id ? (
-                  <div key={todo.id} className="flex items-center space-x-4 bg-white p-4 rounded-lg shadow">
+                  <div key={todo.id} className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-4 bg-white p-4 rounded-lg shadow">
                     <div className="w-5 opacity-0">
                       <GripVertical className="h-5 w-5 text-gray-400" />
                     </div>
@@ -465,9 +467,9 @@ const Index = () => {
                           </PopoverContent>
                         </Popover>
                         {editingDate && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setEditingDate(undefined)}
                             className="h-8 w-8"
                           >
@@ -476,12 +478,14 @@ const Index = () => {
                         )}
                       </div>
                     </div>
-                    <Button onClick={handleSaveEdit} size="icon">
-                      ✓
-                    </Button>
-                    <Button onClick={handleCancelEdit} size="icon" variant="destructive">
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button onClick={handleSaveEdit} size="icon">
+                        ✓
+                      </Button>
+                      <Button onClick={handleCancelEdit} size="icon" variant="destructive">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <SortableTodoItem
